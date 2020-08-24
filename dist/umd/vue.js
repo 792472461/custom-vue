@@ -125,6 +125,17 @@
       return "math";
     }
   }
+  function createFunction(code, errors) {
+    try {
+      return new Function(code);
+    } catch (err) {
+      errors.push({
+        err: err,
+        code: code
+      });
+      return noop;
+    }
+  }
 
   var Observe = /*#__PURE__*/function () {
     function Observe(value) {
@@ -955,133 +966,127 @@
     };
   }
 
-  var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z]*";
-  var qnameCapture = "((?:".concat(ncname, "\\:)?").concat(ncname, ")");
-  var startTagOpen = new RegExp("^<".concat(qnameCapture)); // 标签开头的正则 捕获的内容是标签名
-
-  var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>")); // 匹配标签结尾的 </div>
-
-  var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/; // 匹配属性的
-
-  var dynamicArgAttribute = /^\s*((?:v-[\w-]+:|@|:|#)\[[^=]+\][^\s"'<>\/=]*)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
-  var startTagClose = /^\s*(\/?)>/; // 匹配标签结束的 >
   var isPlainTextElement = makeMap("script,style,textarea", true);
   var isUnaryTag = makeMap("area,base,br,col,embed,frame,hr,img,input,isindex,keygen," + "link,meta,param,source,track,wbr");
-  function parseHtml(html, options) {
-    var stack = [];
-    var index = 0;
-    var lastTag;
 
-    while (html) {
+  function createCompilerCreator(baseCompile) {
+    return function createCompiler(baseOptions) {
+      function compile(template, options) {
+        var finalOptions = Object.create(baseOptions);
+        var errors = [];
+        var tips = [];
 
-      if (!lastTag || !isPlainTextElement(lastTag)) {
-        var textEnd = html.indexOf("<");
+        finalOptions.warn = function (msg, tip) {
+          (tip ? tips : errors).push(msg);
+        };
 
-        if (textEnd === 0) {
-          // End tag:
-          var endTagMatch = html.match(endTag);
-
-          if (endTagMatch) {
-            advance(endTagMatch[0].length);
-            parseEndTag(endTagMatch[1]);
-            continue;
-          } // Start tag:
+        if (options) {
+          // merge custom modules
+          if (options.modules) {
+            finalOptions.modules = (baseOptions.modules || []).concat(options.modules);
+          } // merge custom directives
 
 
-          var startTagMatch = parseStartTag();
-          console.log(startTagMatch, "startTagMatch");
+          if (options.directives) {
+            finalOptions.directives = extend(Object.create(baseOptions.directives || null), options.directives);
+          } // copy other options
 
-          if (startTagMatch) {
-            handleStartTag(startTagMatch); // if (shouldIgnoreFirstNewline(startTagMatch.tagName, html)) {
-            //   advance(1);
-            // }
 
-            continue;
+          for (var key in options) {
+            if (key !== "modules" && key !== "directives") {
+              finalOptions[key] = options[key];
+            }
           }
         }
 
-        var text = void 0;
+        var compiled = baseCompile(template, finalOptions);
+        errors.push.apply(errors, detectErrors(compiled.ast));
+        compiled.errors = errors;
+        compiled.tips = tips;
+        return compiled;
+      }
 
-        if (textEnd >= 0) {
-          text = html.substring(0, textEnd);
-        }
+      return {
+        compile: compile,
+        compileToFunctions: createCompileToFunctionFn(compile)
+      };
+    };
+  }
+  var baseOptions = {};
+  var createCompiler = createCompilerCreator(function baseCompile(template, options) {
+    var ast = parse(template.trim(), options);
+    optimize(ast, options);
+    var code = generate();
+    return {
+      ast: ast,
+      render: code.render,
+      staticRenderFns: code.staticRenderFns
+    };
+  });
+  function generate() {} // ast语法树解析
+  // export function compileToFunctions(template, options, vm) {
+  //   let root = parseHtml(template);
+  //   return function render(h) {};
+  // }
 
-        if (textEnd < 0) {
-          text = html;
-        }
+  function createCompileToFunctionFn(compile) {
+    var cache = Object.create(null);
+    return function compileToFunctions(template) {
+      var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      var vm = arguments.length > 2 ? arguments[2] : undefined;
+      options = Object.create({}, options);
+      var warn = options.warn || warn;
+      delete options.warn;
 
-        if (text) {
-          advance(text.length);
-          chars(text, index - text.length, index);
+      try {
+        new Function("return 1");
+      } catch (e) {
+        if (e.toString().match(/unsafe-eval|CSP/)) {
+          warn("It seems you are using the standalone build of Vue.js in an " + "environment with Content Security Policy that prohibits unsafe-eval. " + "The template compiler cannot work in this environment. Consider " + "relaxing the policy to allow unsafe-eval or pre-compiling your " + "templates into render functions.");
         }
       }
-    }
 
-    function chars(text, start, end) {
-      console.log('文本', text, start, end);
-    }
+      var key = options.delimiters ? String(options.delimiters) + template : template;
 
-    function handleStartTag(match) {
-      var tagName = match.tagName;
-      var unarySlash = match.unarySlash;
-      var unary = isUnaryTag(tagName) || !!unarySlash;
-      var l = match.attrs.length;
-      var attrs = new Array(l);
+      if (cache[key]) {
+        return cache[key];
+      }
 
-      if (!unary) {
-        stack.push({
-          tag: tagName,
-          lowerCasedTag: tagName.toLowerCase(),
-          attrs: attrs,
-          start: match.start,
-          end: match.end
+      var compiled = compile(template, options);
+
+      if (compiled.errors && compiled.errors.length) {
+        warn("Error compiling template:\n\n".concat(template, "\n\n") + compiled.errors.map(function (e) {
+          return "- ".concat(e);
+        }).join("\n") + "\n", vm);
+      }
+
+      if (compiled.tips && compiled.tips.length) {
+        compiled.tips.forEach(function (msg) {
+          return tip(msg, vm);
         });
-        lastTag = tagName;
       }
-    }
 
-    function advance(n) {
-      index += n;
-      html = html.substring(n);
-    }
+      var res = {};
+      var fnGenErrors = [];
+      res.render = createFunction(compiled.render, fnGenErrors);
+      res.staticRenderFns = compiled.staticRenderFns.map(function (code) {
+        return createFunction(code, fnGenErrors);
+      });
 
-    function parseStartTag() {
-      var start = html.match(startTagOpen);
-
-      if (start) {
-        var match = {
-          tagName: start[1],
-          attrs: [],
-          start: index
-        };
-        advance(start[0].length);
-        var end, attr;
-
-        while (!(end = html.match(startTagClose)) && (attr = html.match(dynamicArgAttribute) || html.match(attribute))) {
-          attr.start = index;
-          advance(attr[0].length);
-          attr.end = index;
-          match.attrs.push(attr);
-        }
-
-        if (end) {
-          match.unarySlash = end[1];
-          advance(end[0].length);
-          match.end = index;
-          return match;
-        }
+      if ((!compiled.errors || !compiled.errors.length) && fnGenErrors.length) {
+        warn("Failed to generate render function:\n\n" + fnGenErrors.map(function (_ref) {
+          var err = _ref.err,
+              code = _ref.code;
+          return "".concat(err.toString(), " in\n\n").concat(code, "\n");
+        }).join("\n"), vm);
       }
-    }
 
-    function parseEndTag(tagName, start, end) {
-      console.log("结束标签:", tagName);
-    }
+      return cache[key] = res;
+    };
   }
 
-  function compileToFunctions(template, options, vm) {
-    var root = parseHtml(template);
-    return function render(h) {};
-  }
+  var _createCompiler = createCompiler(baseOptions),
+      compileToFunctions = _createCompiler.compileToFunctions;
 
   var namespaceMap = {
     svg: "http://www.w3.org/2000/svg",
@@ -1209,10 +1214,12 @@
         }
 
         if (template) {
-          var _compileToFunctions = compileToFunctions(template),
+          var _compileToFunctions = compileToFunctions(template, {}, this),
               render = _compileToFunctions.render;
 
-          console.log(render); // 这些是编译相关的，后面在写
+          console.log(render);
+          options.render = render; // options.staticRenderFns = staticRenderFns;
+          // 这些是编译相关的，后面在写
         }
       }
 

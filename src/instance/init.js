@@ -63,6 +63,8 @@ export function initMixin(Vue) {
       if (template) {
         const { render } = compileToFunctions(template, {}, this);
         console.log(render);
+        options.render = render;
+        // options.staticRenderFns = staticRenderFns;
         // 这些是编译相关的，后面在写
       }
     }

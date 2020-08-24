@@ -128,3 +128,12 @@ export function cached(fn) {
     return hit || (cache[str] = fn(str));
   };
 }
+
+export function createFunction(code, errors) {
+  try {
+    return new Function(code);
+  } catch (err) {
+    errors.push({ err, code });
+    return noop;
+  }
+}

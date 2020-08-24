@@ -1,4 +1,4 @@
-import { makeMap } from "../utils/index";
+import { makeMap, warn } from "../utils/index";
 const ncname = `[a-zA-Z_][\\-\\.0-9_a-zA-Z]*`;
 const qnameCapture = `((?:${ncname}\\:)?${ncname})`;
 const startTagOpen = new RegExp(`^<${qnameCapture}`); // 标签开头的正则 捕获的内容是标签名
@@ -29,7 +29,7 @@ export const isUnaryTag = makeMap(
     "link,meta,param,source,track,wbr"
 );
 
-export function parseHtml(html, options) {
+export function parseHtml(html, options = {}) {
   const stack = [];
   let index = 0;
   let last, lastTag;
@@ -71,8 +71,10 @@ export function parseHtml(html, options) {
       }
     }
   }
+  function createASTElement(tag, attrs) {}
+
   function chars(text, start, end) {
-    console.log('文本', text, start, end);
+    console.log("文本", text, start, end);
   }
   function handleStartTag(match) {
     const tagName = match.tagName;
@@ -80,7 +82,6 @@ export function parseHtml(html, options) {
     const unary = isUnaryTag(tagName) || !!unarySlash;
     const l = match.attrs.length;
     const attrs = new Array(l);
-
     if (!unary) {
       stack.push({
         tag: tagName,
@@ -91,6 +92,7 @@ export function parseHtml(html, options) {
       });
       lastTag = tagName;
     }
+    console.log(stack);
   }
 
   function advance(n) {
@@ -128,5 +130,65 @@ export function parseHtml(html, options) {
   }
   function parseEndTag(tagName, start, end) {
     console.log("结束标签:", tagName);
+    let pos, lowerCasedTagName;
+    if (start == null) start = index;
+    if (end == null) end = index;
+    if (tagName) {
+      lowerCasedTagName = tagName.toLowerCase();
+      for (pos = stack.length - 1; pos >= 0; pos--) {
+        if (stack[pos].lowerCasedTag === lowerCasedTagName) {
+          break;
+        }
+      }
+    } else {
+      // If no tag name is provided, clean shop
+      pos = 0;
+    }
+    if (pos >= 0) {
+      // Close all the open elements, up the stack
+      for (let i = stack.length - 1; i >= pos; i--) {
+        if ((i > pos || !tagName) && warn) {
+          warn(`tag <${stack[i].tag}> has no matching end tag.`, {
+            start: stack[i].start,
+            end: stack[i].end,
+          });
+        }
+        if (options.end) {
+          options.end(stack[i].tag, start, end);
+        }
+      }
+
+      // Remove the open elements from the stack
+      stack.length = pos;
+      lastTag = pos && stack[pos - 1].tag;
+    } else if (lowerCasedTagName === "br") {
+      if (options.start) {
+        options.start(tagName, [], true, start, end);
+      }
+    } else if (lowerCasedTagName === "p") {
+      if (options.start) {
+        options.start(tagName, [], false, start, end);
+      }
+      if (options.end) {
+        options.end(tagName, start, end);
+      }
+    }
+    console.log(pos, stack);
   }
+}
+
+export function createASTElement(tag, attrs, parent) {
+  return {
+    type: 1,
+    tag,
+    attrsList: attrs,
+    attrsMap: makeAttrsMap(attrs),
+    rawAttrsMap: {},
+    parent,
+    children: [],
+  };
+}
+
+export function parse(template, options) {
+
 }
