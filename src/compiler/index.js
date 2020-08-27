@@ -1,5 +1,8 @@
 import { warn, createFunction } from "../utils/index";
-import { parseHtml } from "./parse-html";
+import { parse } from "./parse";
+import { optimize } from "./optimize";
+import { generate } from "./generate";
+const baseOptions = {};
 
 export function createCompilerCreator(baseCompile) {
   return function createCompiler(baseOptions) {
@@ -33,7 +36,7 @@ export function createCompilerCreator(baseCompile) {
         }
       }
       const compiled = baseCompile(template, finalOptions);
-      errors.push.apply(errors, detectErrors(compiled.ast));
+      // errors.push.apply(errors, detectErrors(compiled.ast));
       compiled.errors = errors;
       compiled.tips = tips;
       return compiled;
@@ -45,30 +48,6 @@ export function createCompilerCreator(baseCompile) {
     };
   };
 }
-
-const baseOptions = {};
-
-export const createCompiler = createCompilerCreator(function baseCompile(
-  template,
-  options
-) {
-  const ast = parse(template.trim(), options);
-  optimize(ast, options);
-  const code = generate(ast, options);
-  return {
-    ast,
-    render: code.render,
-    staticRenderFns: code.staticRenderFns,
-  };
-});
-
-export function generate() {}
-
-// ast语法树解析
-// export function compileToFunctions(template, options, vm) {
-//   let root = parseHtml(template);
-//   return function render(h) {};
-// }
 
 export function createCompileToFunctionFn(compile) {
   const cache = Object.create(null);
@@ -126,5 +105,19 @@ export function createCompileToFunctionFn(compile) {
   };
 }
 
+export const createCompiler = createCompilerCreator(function baseCompile(
+  template,
+  options
+) {
+  const ast = parse(template.trim(), options);
+  optimize(ast, options);
+  const code = generate(ast, options);
+  console.log(code.render, 'code')
+  return {
+    ast,
+    render: code.render,
+    staticRenderFns: code.staticRenderFns,
+  };
+});
 const { compile, compileToFunctions } = createCompiler(baseOptions);
 export { compile, compileToFunctions };

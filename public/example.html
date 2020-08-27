@@ -6,8 +6,10 @@
     <title>Document</title>
   </head>
   <body>
-    <div id="app"></div>
-    <script src="./js/vue.esm.js"></script>
+    <div id="app">
+      <p>{{message}}</p>
+    </div>
+    <script src="./js/vue.js"></script>
     <script>
       const vm = new Vue({
         el: "#app",
@@ -17,9 +19,9 @@
             listData: [],
           };
         },
-        render(createElement) {
-          return createElement("div", {}, this.message);
-        },
+        // render(createElement) {
+        //   return createElement("div", {}, this.message);
+        // },
       });
     </script>
   </body>

@@ -29,6 +29,11 @@ export const isUnaryTag = makeMap(
     "link,meta,param,source,track,wbr"
 );
 
+function decodeAttr(value, shouldDecodeNewlines) {
+  const re = shouldDecodeNewlines ? encodedAttrWithNewLines : encodedAttr;
+  return value.replace(re, (match) => decodingMap[match]);
+}
+
 export function parseHtml(html, options = {}) {
   const stack = [];
   let index = 0;
@@ -48,7 +53,6 @@ export function parseHtml(html, options = {}) {
         }
         // Start tag:
         const startTagMatch = parseStartTag();
-        console.log(startTagMatch, "startTagMatch");
 
         if (startTagMatch) {
           handleStartTag(startTagMatch);
@@ -71,10 +75,16 @@ export function parseHtml(html, options = {}) {
       }
     }
   }
-  function createASTElement(tag, attrs) {}
+
+  function advance(n) {
+    index += n;
+    html = html.substring(n);
+  }
 
   function chars(text, start, end) {
-    console.log("文本", text, start, end);
+    if (options.chars) {
+      options.chars(text, index - text.length, index);
+    }
   }
   function handleStartTag(match) {
     const tagName = match.tagName;
@@ -82,6 +92,23 @@ export function parseHtml(html, options = {}) {
     const unary = isUnaryTag(tagName) || !!unarySlash;
     const l = match.attrs.length;
     const attrs = new Array(l);
+    for (let i = 0; i < l; i++) {
+      const args = match.attrs[i];
+      const value = args[3] || args[4] || args[5] || "";
+      const shouldDecodeNewlines =
+        tagName === "a" && args[1] === "href"
+          ? options.shouldDecodeNewlinesForHref
+          : options.shouldDecodeNewlines;
+      attrs[i] = {
+        name: args[1],
+        value: decodeAttr(value, shouldDecodeNewlines),
+      };
+      if (options.outputSourceRange) {
+        attrs[i].start = args.start + args[0].match(/^\s*/).length;
+        attrs[i].end = args.end;
+      }
+    }
+
     if (!unary) {
       stack.push({
         tag: tagName,
@@ -92,16 +119,14 @@ export function parseHtml(html, options = {}) {
       });
       lastTag = tagName;
     }
-    console.log(stack);
-  }
-
-  function advance(n) {
-    index += n;
-    html = html.substring(n);
+    if (options.start) {
+      options.start(tagName, attrs, unary, match.start, match.end);
+    }
   }
 
   function parseStartTag() {
     const start = html.match(startTagOpen);
+
     if (start) {
       const match = {
         tagName: start[1],
@@ -129,7 +154,6 @@ export function parseHtml(html, options = {}) {
     }
   }
   function parseEndTag(tagName, start, end) {
-    console.log("结束标签:", tagName);
     let pos, lowerCasedTagName;
     if (start == null) start = index;
     if (end == null) end = index;
@@ -173,22 +197,5 @@ export function parseHtml(html, options = {}) {
         options.end(tagName, start, end);
       }
     }
-    console.log(pos, stack);
   }
-}
-
-export function createASTElement(tag, attrs, parent) {
-  return {
-    type: 1,
-    tag,
-    attrsList: attrs,
-    attrsMap: makeAttrsMap(attrs),
-    rawAttrsMap: {},
-    parent,
-    children: [],
-  };
-}
-
-export function parse(template, options) {
-
 }

@@ -31,6 +31,7 @@ export function initMixin(Vue) {
       vm.$mount(vm.$options.el);
     }
   };
+
   Vue.prototype.$mount = function (el) {
     const vm = this;
     const options = this.$options;
@@ -61,11 +62,10 @@ export function initMixin(Vue) {
         template = getOuterHTML(el);
       }
       if (template) {
-        const { render } = compileToFunctions(template, {}, this);
+        const { render, staticRenderFns } = compileToFunctions(template, {}, this);
         console.log(render);
         options.render = render;
-        // options.staticRenderFns = staticRenderFns;
-        // 这些是编译相关的，后面在写
+        options.staticRenderFns = staticRenderFns;
       }
     }
     return mount.call(this, el, false);

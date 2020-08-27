@@ -58,7 +58,6 @@ export function _createElement(
     // in case of component :is set to falsy value
     return createEmptyVNode();
   }
-  console.log(arguments);
 
   // if (Array.isArray(children) && typeof children[0] === 'function') {
   // }
@@ -70,7 +69,6 @@ export function _createElement(
   let vnode, ns;
   if (typeof tag === "string") {
     let Ctor;
-    console.log(tag);
     ns = (context.$vnode && context.$vnode.ns) || getTagNamespace(tag);
 
     // 这里先判断是不是html基本标签
@@ -100,12 +98,10 @@ export function _createElement(
       vnode = new VNode(tag, data, children, undefined, undefined, context);
     }
 
-    console.log(vnode);
   } else {
     // 组件逻辑
   }
 
-  console.log(vnode, 'vnode')
   if (Array.isArray(vnode)) {
     return vnode;
   } else if (isDef(vnode)) {

@@ -1,4 +1,5 @@
 const _toString = Object.prototype.toString;
+const errors = [];
 
 var isHTMLTag = makeMap(
   "html,body,base,head,link,meta,style,title," +
@@ -129,11 +130,19 @@ export function cached(fn) {
   };
 }
 
-export function createFunction(code, errors) {
+export function createFunction(code, errors = []) {
   try {
     return new Function(code);
   } catch (err) {
     errors.push({ err, code });
     return noop;
   }
+}
+
+export function toString(val) {
+  return val == null
+    ? ""
+    : Array.isArray(val) || (isPlainObject(val) && val.toString === _toString)
+    ? JSON.stringify(val, null, 2)
+    : String(val);
 }

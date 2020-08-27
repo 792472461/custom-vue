@@ -125,7 +125,20 @@
       return "math";
     }
   }
-  function createFunction(code, errors) {
+  /**
+   * Create a cached version of a pure function.
+   */
+
+  function cached(fn) {
+    var cache = Object.create(null);
+    return function cachedFn(str) {
+      var hit = cache[str];
+      return hit || (cache[str] = fn(str));
+    };
+  }
+  function createFunction(code) {
+    var errors = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+
     try {
       return new Function(code);
     } catch (err) {
@@ -135,6 +148,9 @@
       });
       return noop;
     }
+  }
+  function toString(val) {
+    return val == null ? "" : Array.isArray(val) || isPlainObject(val) && val.toString === _toString ? JSON.stringify(val, null, 2) : String(val);
   }
 
   var Observe = /*#__PURE__*/function () {
@@ -432,14 +448,6 @@
   /* not type checking this file because flow doesn't play well with Proxy */
   var initProxy;
 
-  var warnNonPresent = function warnNonPresent(target, key) {
-    warn$1("Property or method \"".concat(key, "\" is not defined on the instance but ") + "referenced during render. Make sure that this property is reactive, " + "either in the data option, or for class-based components, by " + "initializing the property. " + "See: https://vuejs.org/v2/guide/reactivity.html#Declaring-Reactive-Properties.", target);
-  };
-
-  var warnReservedPrefix = function warnReservedPrefix(target, key) {
-    warn$1("Property \"".concat(key, "\" must be accessed with \"$data.").concat(key, "\" because ") + 'properties starting with "$" or "_" are not proxied in the Vue instance to ' + "prevent conflicts with Vue internals. " + "See: https://vuejs.org/v2/api/#data", target);
-  };
-
   var hasProxy = typeof Proxy !== "undefined";
 
   if (hasProxy) {
@@ -457,37 +465,18 @@
     });
   }
 
-  var hasHandler = {
-    has: function has(target, key) {
-      var has = (key in target);
-      var isAllowed = allowedGlobals(key) || typeof key === "string" && key.charAt(0) === "_" && !(key in target.$data);
-
-      if (!has && !isAllowed) {
-        if (key in target.$data) warnReservedPrefix(target, key);else warnNonPresent(target, key);
-      }
-
-      return has || !isAllowed;
-    }
-  };
-  var getHandler = {
-    get: function get(target, key) {
-      if (typeof key === "string" && !(key in target)) {
-        if (key in target.$data) warnReservedPrefix(target, key);else warnNonPresent(target, key);
-      }
-
-      return target[key];
-    }
-  };
+  var allowedGlobals = makeMap("Infinity,undefined,NaN,isFinite,isNaN," + "parseFloat,parseInt,decodeURI,decodeURIComponent,encodeURI,encodeURIComponent," + "Math,Number,Date,Array,Object,Boolean,String,RegExp,Map,Set,JSON,Intl," + "require" // for Webpack/Browserify
+  );
 
   initProxy = function initProxy(vm) {
-    if (hasProxy) {
-      // determine which proxy handler to use
-      var options = vm.$options;
-      var handlers = options.render && options.render._withStripped ? getHandler : hasHandler;
-      vm._renderProxy = new Proxy(vm, handlers);
-    } else {
-      vm._renderProxy = vm;
-    }
+    // if (hasProxy) {
+    //   // determine which proxy handler to use
+    //   const options = vm.$options;
+    //   const handlers =
+    //     options.render && options.render._withStripped ? getHandler : hasHandler;
+    //   vm._renderProxy = new Proxy(vm, handlers);
+    // } else {
+    vm._renderProxy = vm; // }
   };
 
   // statically analyzing the template at compile time.
@@ -597,10 +586,9 @@
     if (!tag) {
       // in case of component :is set to falsy value
       return createEmptyVNode();
-    }
-
-    console.log(arguments); // if (Array.isArray(children) && typeof children[0] === 'function') {
+    } // if (Array.isArray(children) && typeof children[0] === 'function') {
     // }
+
 
     if (normalizationType === ALWAYS_NORMALIZE) {
       children = normalizeChildren(children);
@@ -612,7 +600,6 @@
 
     if (typeof tag === "string") {
       var Ctor;
-      console.log(tag);
       ns = context.$vnode && context.$vnode.ns || getTagNamespace(tag); // 这里先判断是不是html基本标签
 
       if (isReservedTag(tag)) {
@@ -624,11 +611,7 @@
       } else if ((!data || !data.pre) && isDef$1(Ctor = resolveAsset(context.$options, "components", tag))) ; else {
         vnode = new VNode(tag, data, children, undefined, undefined, context);
       }
-
-      console.log(vnode);
     }
-
-    console.log(vnode, 'vnode');
 
     if (Array.isArray(vnode)) {
       return vnode;
@@ -658,17 +641,20 @@
     };
   }
   function renderMixin(Vue) {
+    installRenderHelpers(Vue.prototype);
+
     Vue.prototype._render = function () {
       var vm = this;
       var _vm$$options = vm.$options,
           render = _vm$$options.render,
           _parentVnode = _vm$$options._parentVnode;
-      console.log(render);
       var vnode;
 
       try {
         vnode = render.call(vm._renderProxy, vm.$createElement);
-      } catch (error) {}
+      } catch (error) {
+        console.log(error);
+      }
 
       if (Array.isArray(vnode) && vnode.length === 1) {
         vnode = vnode[0];
@@ -685,8 +671,28 @@
 
 
       vnode.parent = _parentVnode;
+      console.log(vnode);
       return vnode;
     };
+  }
+
+  function installRenderHelpers(target) {
+    // target._o = markOnce;
+    // target._n = toNumber;
+    target._s = toString; // target._l = renderList;
+    // target._t = renderSlot;
+    // target._q = looseEqual;
+    // target._i = looseIndexOf;
+    // target._m = renderStatic;
+    // target._f = resolveFilter;
+    // target._k = checkKeyCodes;
+    // target._b = bindObjectProps;
+
+    target._v = createTextVNode;
+    target._e = createEmptyVNode; // target._u = resolveScopedSlots;
+    // target._g = bindObjectListeners;
+    // target._d = bindDynamicKeys;
+    // target._p = prependModifier;
   }
 
   var hooks = ["create", "activate", "update", "remove", "destroy"];
@@ -966,9 +972,529 @@
     };
   }
 
+  var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z]*";
+  var qnameCapture = "((?:".concat(ncname, "\\:)?").concat(ncname, ")");
+  var startTagOpen = new RegExp("^<".concat(qnameCapture)); // 标签开头的正则 捕获的内容是标签名
+
+  var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>")); // 匹配标签结尾的 </div>
+
+  var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/; // 匹配属性的
+
+  var dynamicArgAttribute = /^\s*((?:v-[\w-]+:|@|:|#)\[[^=]+\][^\s"'<>\/=]*)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
+  var startTagClose = /^\s*(\/?)>/; // 匹配标签结束的 >
+  var decodingMap = {
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+    "&amp;": "&",
+    "&#10;": "\n",
+    "&#9;": "\t",
+    "&#39;": "'"
+  };
+  var encodedAttr = /&(?:lt|gt|quot|amp|#39);/g;
+  var encodedAttrWithNewLines = /&(?:lt|gt|quot|amp|#39|#10|#9);/g;
   var isPlainTextElement = makeMap("script,style,textarea", true);
   var isUnaryTag = makeMap("area,base,br,col,embed,frame,hr,img,input,isindex,keygen," + "link,meta,param,source,track,wbr");
 
+  function decodeAttr(value, shouldDecodeNewlines) {
+    var re = shouldDecodeNewlines ? encodedAttrWithNewLines : encodedAttr;
+    return value.replace(re, function (match) {
+      return decodingMap[match];
+    });
+  }
+
+  function parseHtml(html) {
+    var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    var stack = [];
+    var index = 0;
+    var lastTag;
+
+    while (html) {
+
+      if (!lastTag || !isPlainTextElement(lastTag)) {
+        var textEnd = html.indexOf("<");
+
+        if (textEnd === 0) {
+          // End tag:
+          var endTagMatch = html.match(endTag);
+
+          if (endTagMatch) {
+            var curIndex = index;
+            advance(endTagMatch[0].length);
+            parseEndTag(endTagMatch[1], curIndex, index);
+            continue;
+          } // Start tag:
+
+
+          var startTagMatch = parseStartTag();
+
+          if (startTagMatch) {
+            handleStartTag(startTagMatch); // if (shouldIgnoreFirstNewline(startTagMatch.tagName, html)) {
+            //   advance(1);
+            // }
+
+            continue;
+          }
+        }
+
+        var text = void 0;
+
+        if (textEnd >= 0) {
+          text = html.substring(0, textEnd);
+        }
+
+        if (textEnd < 0) {
+          text = html;
+        }
+
+        if (text) {
+          advance(text.length);
+          chars(text, index - text.length);
+        }
+      }
+    }
+
+    function advance(n) {
+      index += n;
+      html = html.substring(n);
+    }
+
+    function chars(text, start, end) {
+      if (options.chars) {
+        options.chars(text, index - text.length, index);
+      }
+    }
+
+    function handleStartTag(match) {
+      var tagName = match.tagName;
+      var unarySlash = match.unarySlash;
+      var unary = isUnaryTag(tagName) || !!unarySlash;
+      var l = match.attrs.length;
+      var attrs = new Array(l);
+
+      for (var i = 0; i < l; i++) {
+        var args = match.attrs[i];
+        var value = args[3] || args[4] || args[5] || "";
+        var shouldDecodeNewlines = tagName === "a" && args[1] === "href" ? options.shouldDecodeNewlinesForHref : options.shouldDecodeNewlines;
+        attrs[i] = {
+          name: args[1],
+          value: decodeAttr(value, shouldDecodeNewlines)
+        };
+
+        if (options.outputSourceRange) {
+          attrs[i].start = args.start + args[0].match(/^\s*/).length;
+          attrs[i].end = args.end;
+        }
+      }
+
+      if (!unary) {
+        stack.push({
+          tag: tagName,
+          lowerCasedTag: tagName.toLowerCase(),
+          attrs: attrs,
+          start: match.start,
+          end: match.end
+        });
+        lastTag = tagName;
+      }
+
+      if (options.start) {
+        options.start(tagName, attrs, unary, match.start, match.end);
+      }
+    }
+
+    function parseStartTag() {
+      var start = html.match(startTagOpen);
+
+      if (start) {
+        var match = {
+          tagName: start[1],
+          attrs: [],
+          start: index
+        };
+        advance(start[0].length);
+        var end, attr;
+
+        while (!(end = html.match(startTagClose)) && (attr = html.match(dynamicArgAttribute) || html.match(attribute))) {
+          attr.start = index;
+          advance(attr[0].length);
+          attr.end = index;
+          match.attrs.push(attr);
+        }
+
+        if (end) {
+          match.unarySlash = end[1];
+          advance(end[0].length);
+          match.end = index;
+          return match;
+        }
+      }
+    }
+
+    function parseEndTag(tagName, start, end) {
+      var pos, lowerCasedTagName;
+      if (start == null) start = index;
+      if (end == null) end = index;
+
+      if (tagName) {
+        lowerCasedTagName = tagName.toLowerCase();
+
+        for (pos = stack.length - 1; pos >= 0; pos--) {
+          if (stack[pos].lowerCasedTag === lowerCasedTagName) {
+            break;
+          }
+        }
+      } else {
+        // If no tag name is provided, clean shop
+        pos = 0;
+      }
+
+      if (pos >= 0) {
+        // Close all the open elements, up the stack
+        for (var i = stack.length - 1; i >= pos; i--) {
+          if ((i > pos || !tagName) && warn$1) {
+            warn$1("tag <".concat(stack[i].tag, "> has no matching end tag."), {
+              start: stack[i].start,
+              end: stack[i].end
+            });
+          }
+
+          if (options.end) {
+            options.end(stack[i].tag, start, end);
+          }
+        } // Remove the open elements from the stack
+
+
+        stack.length = pos;
+        lastTag = pos && stack[pos - 1].tag;
+      } else if (lowerCasedTagName === "br") {
+        if (options.start) {
+          options.start(tagName, [], true, start, end);
+        }
+      } else if (lowerCasedTagName === "p") {
+        if (options.start) {
+          options.start(tagName, [], false, start, end);
+        }
+
+        if (options.end) {
+          options.end(tagName, start, end);
+        }
+      }
+    }
+  }
+
+  var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g;
+  var regexEscapeRE = /[-.*+?^${}()|[\]\/\\]/g;
+  var buildRegex = cached(function (delimiters) {
+    var open = delimiters[0].replace(regexEscapeRE, "\\$&");
+    var close = delimiters[1].replace(regexEscapeRE, "\\$&");
+    return new RegExp(open + "((?:.|\\n)+?)" + close, "g");
+  });
+  function parse(template) {
+    var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    var root, currentParent;
+    var stack = [];
+    parseHtml(template, {
+      start: function start(tag, attrs, unary) {
+        var element = createASTElement(tag, attrs, currentParent);
+
+        if (!root) {
+          root = element;
+        }
+
+        if (!unary) {
+          currentParent = element;
+          stack.push(element);
+        }
+      },
+      end: function end(tag, start, _end) {
+        var element = stack.pop();
+        currentParent = stack[stack.length - 1];
+
+        if (currentParent) {
+          element.parent = currentParent;
+          currentParent.children.push(element);
+        }
+      },
+      chars: function chars(text, start, end) {
+        if (!currentParent) {
+          return;
+        }
+
+        var children = currentParent.children;
+        var child, res;
+
+        if (text !== " " && (res = parseText(text, options.delimiters))) {
+          child = {
+            type: 2,
+            expression: res.expression,
+            tokens: res.tokens,
+            text: text
+          };
+        } else if (text !== " " || !children.length || children[children.length - 1].text !== " ") {
+          child = {
+            type: 3,
+            text: text
+          };
+        }
+
+        if (child) {
+          children.push(child);
+        }
+      }
+    });
+    return root;
+  }
+
+  function makeAttrsMap(attrs) {
+    var map = {};
+
+    for (var i = 0, l = attrs.length; i < l; i++) {
+      if (map[attrs[i].name]) {
+        warn("duplicate attribute: " + attrs[i].name, attrs[i]);
+      }
+
+      map[attrs[i].name] = attrs[i].value;
+    }
+
+    return map;
+  }
+
+  function createASTElement(tag, attrs, parent) {
+    return {
+      type: 1,
+      tag: tag,
+      attrsList: attrs,
+      attrsMap: makeAttrsMap(attrs),
+      parent: parent,
+      children: []
+    };
+  }
+  function parseText(text, delimiters) {
+    var tagRE = delimiters ? buildRegex(delimiters) : defaultTagRE;
+
+    if (!tagRE.test(text)) {
+      return;
+    }
+
+    var tokens = [];
+    var rawTokens = [];
+    var lastIndex = tagRE.lastIndex = 0;
+    var match, index, tokenValue;
+
+    while (match = tagRE.exec(text)) {
+      index = match.index; // push text token
+
+      if (index > lastIndex) {
+        rawTokens.push(tokenValue = text.slice(lastIndex, index));
+        tokens.push(JSON.stringify(tokenValue));
+      } // tag token
+
+
+      var exp = parseFilters(match[1].trim());
+      tokens.push("_s(".concat(exp, ")"));
+      rawTokens.push({
+        "@binding": exp
+      });
+      lastIndex = index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      rawTokens.push(tokenValue = text.slice(lastIndex));
+      tokens.push(JSON.stringify(tokenValue));
+    }
+
+    return {
+      expression: tokens.join("+"),
+      tokens: rawTokens
+    };
+  }
+  var validDivisionCharRE = /[\w).+\-_$\]]/;
+  function parseFilters(exp) {
+    var inSingle = false;
+    var inDouble = false;
+    var inTemplateString = false;
+    var inRegex = false;
+    var curly = 0;
+    var square = 0;
+    var paren = 0;
+    var lastFilterIndex = 0;
+    var c, prev, i, expression, filters;
+
+    for (i = 0; i < exp.length; i++) {
+      prev = c;
+      c = exp.charCodeAt(i);
+
+      if (inSingle) {
+        if (c === 0x27 && prev !== 0x5c) inSingle = false;
+      } else if (inDouble) {
+        if (c === 0x22 && prev !== 0x5c) inDouble = false;
+      } else if (inTemplateString) {
+        if (c === 0x60 && prev !== 0x5c) inTemplateString = false;
+      } else if (inRegex) {
+        if (c === 0x2f && prev !== 0x5c) inRegex = false;
+      } else if (c === 0x7c && // pipe
+      exp.charCodeAt(i + 1) !== 0x7c && exp.charCodeAt(i - 1) !== 0x7c && !curly && !square && !paren) {
+        if (expression === undefined) {
+          // first filter, end of expression
+          lastFilterIndex = i + 1;
+          expression = exp.slice(0, i).trim();
+        } else {
+          pushFilter();
+        }
+      } else {
+        switch (c) {
+          case 0x22:
+            inDouble = true;
+            break;
+          // "
+
+          case 0x27:
+            inSingle = true;
+            break;
+          // '
+
+          case 0x60:
+            inTemplateString = true;
+            break;
+          // `
+
+          case 0x28:
+            paren++;
+            break;
+          // (
+
+          case 0x29:
+            paren--;
+            break;
+          // )
+
+          case 0x5b:
+            square++;
+            break;
+          // [
+
+          case 0x5d:
+            square--;
+            break;
+          // ]
+
+          case 0x7b:
+            curly++;
+            break;
+          // {
+
+          case 0x7d:
+            curly--;
+            break;
+          // }
+        }
+
+        if (c === 0x2f) {
+          // /
+          var j = i - 1;
+          var p = void 0; // find first non-whitespace prev char
+
+          for (; j >= 0; j--) {
+            p = exp.charAt(j);
+            if (p !== " ") break;
+          }
+
+          if (!p || !validDivisionCharRE.test(p)) {
+            inRegex = true;
+          }
+        }
+      }
+    }
+
+    if (expression === undefined) {
+      expression = exp.slice(0, i).trim();
+    } else if (lastFilterIndex !== 0) {
+      pushFilter();
+    }
+
+    function pushFilter() {
+      (filters || (filters = [])).push(exp.slice(lastFilterIndex, i).trim());
+      lastFilterIndex = i + 1;
+    }
+
+    if (filters) {
+      for (i = 0; i < filters.length; i++) {
+        expression = wrapFilter(expression, filters[i]);
+      }
+    }
+
+    return expression;
+  }
+
+  function generate(ast, options) {
+    var code = ast ? genElement(ast) : '_c("div")';
+    return {
+      render: "with(this) {return ".concat(code, "}"),
+      staticRenderFns: []
+    };
+  }
+  function genElement(el) {
+    if (el.parent) {
+      el.pre = el.pre || el.parent.pre;
+    }
+
+    var code;
+    code = "_c('".concat(el.tag, "', {attrs: ").concat(JSON.stringify(el.attrsMap), "}, ").concat(el.children ? genChildren(el) : "", ")"); // if (!el.plain || (el.pre && state.maybeComponent(el))) {
+    //   data = genData(el, state);
+    // }
+    // const children = el.inlineTemplate ? null : genChildren(el, state, true);
+    // code = `_c('${el.tag}'${
+    //   data ? `,${data}` : "" // data
+    // }${
+    //   children ? `,${children}` : "" // children
+    // })`;
+    // module transforms
+    // for (let i = 0; i < state.transforms.length; i++) {
+    //   code = state.transforms[i](el, code);
+    // }
+
+    return code;
+  }
+  function genChildren(el) {
+    var children = el.children;
+
+    if (children.length) {
+      return children.map(function (children) {
+        return gen(children);
+      }).filter(Boolean).join(",");
+    }
+  }
+  function gen(node) {
+    if (node.type === 1) {
+      return genElement(node);
+    } else {
+      var text = node.text;
+
+      if (node.type === 3) {
+        return "";
+      } else {
+        return genText(node);
+      }
+    }
+  }
+  function genText(text) {
+    return "_v(".concat(text.type === 2 ? text.expression // no need for () because already wrapped in _s()
+    : transformSpecialNewlines(JSON.stringify(text.text)), ")");
+  }
+
+  function transformSpecialNewlines(text) {
+    return text.replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+  } // with (this) {
+  //   return _c(
+  //     "div",
+  //     { attrs: { id: "app", class: "root" } },
+  //     _c("p", { attrs: { class: "p" } }, _v(_s(message)))
+  //   );
+  // }
+  // with(this){return _c('div', {attrs: {"id":"app","class":"root"}},_c('p', {attrs: {"class":"p"}}_v(_s(message))),)}
+
+  var baseOptions = {};
   function createCompilerCreator(baseCompile) {
     return function createCompiler(baseOptions) {
       function compile(template, options) {
@@ -999,8 +1525,8 @@
           }
         }
 
-        var compiled = baseCompile(template, finalOptions);
-        errors.push.apply(errors, detectErrors(compiled.ast));
+        var compiled = baseCompile(template, finalOptions); // errors.push.apply(errors, detectErrors(compiled.ast));
+
         compiled.errors = errors;
         compiled.tips = tips;
         return compiled;
@@ -1012,23 +1538,6 @@
       };
     };
   }
-  var baseOptions = {};
-  var createCompiler = createCompilerCreator(function baseCompile(template, options) {
-    var ast = parse(template.trim(), options);
-    optimize(ast, options);
-    var code = generate();
-    return {
-      ast: ast,
-      render: code.render,
-      staticRenderFns: code.staticRenderFns
-    };
-  });
-  function generate() {} // ast语法树解析
-  // export function compileToFunctions(template, options, vm) {
-  //   let root = parseHtml(template);
-  //   return function render(h) {};
-  // }
-
   function createCompileToFunctionFn(compile) {
     var cache = Object.create(null);
     return function compileToFunctions(template) {
@@ -1084,6 +1593,16 @@
       return cache[key] = res;
     };
   }
+  var createCompiler = createCompilerCreator(function baseCompile(template, options) {
+    var ast = parse(template.trim(), options);
+    var code = generate(ast);
+    console.log(code.render, 'code');
+    return {
+      ast: ast,
+      render: code.render,
+      staticRenderFns: code.staticRenderFns
+    };
+  });
 
   var _createCompiler = createCompiler(baseOptions),
       compileToFunctions = _createCompiler.compileToFunctions;
@@ -1215,11 +1734,12 @@
 
         if (template) {
           var _compileToFunctions = compileToFunctions(template, {}, this),
-              render = _compileToFunctions.render;
+              render = _compileToFunctions.render,
+              staticRenderFns = _compileToFunctions.staticRenderFns;
 
           console.log(render);
-          options.render = render; // options.staticRenderFns = staticRenderFns;
-          // 这些是编译相关的，后面在写
+          options.render = render;
+          options.staticRenderFns = staticRenderFns;
         }
       }
 

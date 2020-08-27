@@ -1,5 +1,6 @@
 import { createElement } from "../vdom/create-elemnt";
-import VNode, { createEmptyVNode } from "../vdom/vnode";
+import VNode, { createEmptyVNode, createTextVNode } from "../vdom/vnode";
+import { toString } from "../utils/index";
 
 export function initRender(vm) {
   // vm._vnode = null; // the root of the child tree
@@ -14,14 +15,17 @@ export function initRender(vm) {
 }
 
 export function renderMixin(Vue) {
+  installRenderHelpers(Vue.prototype);
+
   Vue.prototype._render = function () {
     const vm = this;
     const { render, _parentVnode } = vm.$options;
-    console.log(render)
     let vnode;
     try {
       vnode = render.call(vm._renderProxy, vm.$createElement);
-    } catch (error) {}
+    } catch (error) {
+      console.log(error)
+    }
 
     if (Array.isArray(vnode) && vnode.length === 1) {
       vnode = vnode[0];
@@ -39,6 +43,27 @@ export function renderMixin(Vue) {
     }
     // set parent
     vnode.parent = _parentVnode;
+    console.log(vnode)
     return vnode;
   };
+}
+
+function installRenderHelpers(target) {
+  // target._o = markOnce;
+  // target._n = toNumber;
+  target._s = toString;
+  // target._l = renderList;
+  // target._t = renderSlot;
+  // target._q = looseEqual;
+  // target._i = looseIndexOf;
+  // target._m = renderStatic;
+  // target._f = resolveFilter;
+  // target._k = checkKeyCodes;
+  // target._b = bindObjectProps;
+  target._v = createTextVNode;
+  target._e = createEmptyVNode;
+  // target._u = resolveScopedSlots;
+  // target._g = bindObjectListeners;
+  // target._d = bindDynamicKeys;
+  // target._p = prependModifier;
 }

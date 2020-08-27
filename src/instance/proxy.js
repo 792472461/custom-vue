@@ -44,8 +44,15 @@ if (hasProxy) {
   });
 }
 
+const allowedGlobals = makeMap(
+  "Infinity,undefined,NaN,isFinite,isNaN," +
+    "parseFloat,parseInt,decodeURI,decodeURIComponent,encodeURI,encodeURIComponent," +
+    "Math,Number,Date,Array,Object,Boolean,String,RegExp,Map,Set,JSON,Intl," +
+    "require" // for Webpack/Browserify
+);
 const hasHandler = {
   has(target, key) {
+    debugger;
     const has = key in target;
     const isAllowed =
       allowedGlobals(key) ||
@@ -71,15 +78,15 @@ const getHandler = {
 };
 
 initProxy = function initProxy(vm) {
-  if (hasProxy) {
-    // determine which proxy handler to use
-    const options = vm.$options;
-    const handlers =
-      options.render && options.render._withStripped ? getHandler : hasHandler;
-    vm._renderProxy = new Proxy(vm, handlers);
-  } else {
-    vm._renderProxy = vm;
-  }
+  // if (hasProxy) {
+  //   // determine which proxy handler to use
+  //   const options = vm.$options;
+  //   const handlers =
+  //     options.render && options.render._withStripped ? getHandler : hasHandler;
+  //   vm._renderProxy = new Proxy(vm, handlers);
+  // } else {
+  vm._renderProxy = vm;
+  // }
 };
 
 export { initProxy };
