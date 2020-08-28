@@ -3,7 +3,7 @@ import { createFunction } from "../utils/index";
 export function generate(ast, options) {
   const code = ast ? genElement(ast) : '_c("div")';
   return {
-    render: `with(this) {return ${code}}`,
+    render: `with(this) {console.log(this); return ${code}}`,
     staticRenderFns: [],
   };
 }

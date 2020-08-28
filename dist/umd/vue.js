@@ -788,6 +788,8 @@
     }
 
     function createChildren(vnode, children, insertedVnodeQueue) {
+      console.log(vnode.elm, "createChildren");
+
       if (Array.isArray(children)) {
         for (var _i = 0; _i < children.length; ++_i) {
           createElm(children[_i], insertedVnodeQueue, vnode.elm, null);
@@ -897,6 +899,7 @@
       var data = vnode.data;
       var children = vnode.children;
       var tag = vnode.tag;
+      debugger;
 
       if (isDef$1(tag)) {
         if (data && data.pre) {
@@ -907,6 +910,7 @@
           warn("Unknown custom element: <" + tag + "> - did you " + "register the component correctly? For recursive components, " + 'make sure to provide the "name" option.', vnode.context);
         }
 
+        console.log(vnode);
         vnode.elm = vnode.ns ? nodeOps.createElementNS(vnode.ns, tag) : nodeOps.createElement(tag, vnode);
         createChildren(vnode, children, insertedVnodeQueue);
 
@@ -958,14 +962,15 @@
 
         var oldElm = oldVnode.elm;
         var parentElm = nodeOps.parentNode(oldElm);
-        console.log(parentElm);
         createElm(vnode, insertedVnodeQueue, oldElm._leaveCb ? null : parentElm, nodeOps.nextSibling(oldElm));
 
         if (isDef$1(parentElm)) {
           removeVnodes([oldVnode], 0, 0);
         } else if (isDef$1(oldVnode.tag)) {
           invokeDestroyHook(oldVnode);
-        }
+        } // const oldElm = oldVnode;
+        // const parentElm = oldElm.parentNode;
+
       }
 
       console.log(oldVnode, vnode, hydrating, removeOnly);
@@ -1430,7 +1435,7 @@
   function generate(ast, options) {
     var code = ast ? genElement(ast) : '_c("div")';
     return {
-      render: "with(this) {return ".concat(code, "}"),
+      render: "with(this) {console.log(this); return ".concat(code, "}"),
       staticRenderFns: []
     };
   }

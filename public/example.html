@@ -6,9 +6,7 @@
     <title>Document</title>
   </head>
   <body>
-    <div id="app">
-      <p>{{message}}</p>
-    </div>
+    <div id="app"></div>
     <script src="./js/vue.js"></script>
     <script>
       const vm = new Vue({
@@ -19,9 +17,9 @@
             listData: [],
           };
         },
-        // render(createElement) {
-        //   return createElement("div", {}, this.message);
-        // },
+        render(createElement) {
+          return createElement("div", {}, this.message);
+        },
       });
     </script>
   </body>
